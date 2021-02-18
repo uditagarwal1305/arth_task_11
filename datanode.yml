@@ -1,0 +1,82 @@
+- hosts: "localhost"
+  vars_files:
+          - lock.yml
+  tasks:
+   - name: "launching ec2 instance for Hadoop Master"
+     ec2:
+      key_name: "myarthos1"
+      instance_type: t2.micro
+      image: "ami-0a9d27a9f4f5c0efc"
+      wait: yes
+      count: 2
+      instance_tags:
+              Name: "hadoop_datanode"
+      state: present
+      region: "ap-south-1"
+      group_id: "sg-0088112d467d8b387"
+      aws_access_key: "{{ accesskey }}"
+      aws_secret_key: "{{ secretkey }}"
+     register: ec2
+
+   - name: Add new instance to host group
+     add_host:
+      hostname: "{{ item.public_ip }}"
+      groupname: datanode
+     loop: "{{ ec2.instances }}"
+   - name: Wait for SSH to come up
+     wait_for:
+             host: "{{ item.public_dns_name }}"
+             port: 22
+             state: started
+     loop: "{{ ec2.instances }}"
+
+
+- hosts: datanode
+  vars_prompt:
+   - name: data_dir
+     private: no
+     prompt: "Enter name for namenode directory :"
+
+  tasks:
+   - name: "Copy Hadoop Softwares"
+     copy:
+         src: /root/hadoop/
+         dest: /root/
+
+   - name: "Install JDK on Master"
+     command: "sudo rpm -ivh /root/jdk-8u171-linux-x64.rpm"
+
+   - name: "Install Hadoop software on Master"
+     command: "sudo rpm -ivh /root/hadoop-1.2.1-1.x86_64.rpm --force"
+
+   - name: "Configure datanode"
+     file:
+        state: directory
+        path: "/root/{{ data_dir }}"
+
+   - name: "SELinux in permissive mode."
+     selinux:
+        policy: targeted
+        state: permissive
+
+   - name: "Copy core-site.xml"
+     template:
+           src: /root/wb/task2/hadoopdatanode/core-site.xml
+           dest: /etc/hadoop/core-site.xml
+
+   - name: "Copy hdfs-site.xml"
+     template:
+            src: /root/wb/task2/hadoopdatanode/hdfs-site.xml
+            dest: /etc/hadoop/hdfs-site.xml
+
+   - name: "Stop datanode service"
+     shell: "hadoop-daemon.sh stop datanode"
+
+   - name: Start datanode
+     shell: "hadoop-daemon.sh start datanode"
+
+   - name: "Java process"
+     shell: "jps"
+
+   - name: "Running hadoop report" 
+     shell: "hadoop dfsadmin -report"

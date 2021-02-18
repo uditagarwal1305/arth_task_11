@@ -1,0 +1,27 @@
+- hosts: localhost
+  vars_prompt: 
+  - name: filename
+    prompt: " Enter your filename  "
+    private: no
+
+  - name: path
+    prompt: " Enter your path  "
+    private: no
+    
+  tasks:
+    - name: SELinux in permissive mode.
+      ansible.posix.selinux:
+              policy: targeted
+              state: permissive
+
+    - name: Stop Firewall
+      service:
+              name: "firewalld"
+              state: stopped
+
+    - name: Copy CORE-SITE.xml file
+      template:
+              src: /root/wb/task2/hadoopdatanode/core-site.xml
+              dest: /etc/hadoop/              
+    - name: Sending FIle...
+      command: hadoop fs -put {{ filename }} {{ path }}
